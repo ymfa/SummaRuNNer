@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import re
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm
@@ -45,6 +46,7 @@ parser.add_argument('-test_dir',type=str,default='data/test.json')
 parser.add_argument('-ref',type=str,default='outputs/ref')
 parser.add_argument('-hyp',type=str,default='outputs/hyp')
 parser.add_argument('-topk',type=int,default=3)
+parser.add_argument('-num_tok',type=int,default=0)  # number of output tokens, if 0 use topk
 # device
 parser.add_argument('-device',type=int)
 # option
@@ -158,6 +160,7 @@ def test():
     with open(args.word2id) as f:
         word2id = json.load(f)
     vocab = utils.Vocab(embed, word2id)
+    word_detector = re.compile(r'\w')
 
     with open(args.test_dir) as f:
         examples = [json.loads(line) for line in f]
@@ -197,15 +200,41 @@ def test():
         for doc_id,doc_len in enumerate(doc_lens):
             stop = start + doc_len
             prob = probs[start:stop]
-            topk = min(args.topk,doc_len)
-            topk_indices = prob.topk(topk)[1].cpu().data.numpy()
-            topk_indices.sort()
-            doc = batch['doc'][doc_id].split('\n')[:doc_len]
-            hyp = [doc[index] for index in topk_indices]
+            if args.num_tok > 0:
+                _, ranking = prob.sort(descending=True)
+                sorted_idx = sorted([(rank, idx) for idx, rank in enumerate(ranking)])
+                doc = batch['doc'][doc_id].split('\n')[:doc_len]
+                length = []
+                for sent in doc:
+                    length.append(len([t for t in sent.split(' ') if word_detector.search(t)]))
+                summary_sents, summary_len = [], 0
+                for _, idx in sorted_idx:
+                    sent, sent_len = doc[idx], length[idx]
+                    if summary_len + sent_len <= args.num_tok:
+                        summary_sents.append((idx, sent))
+                        summary_len += sent_len
+                    elif summary_len < args.num_tok:
+                        cut_sent, remaining_len = [], args.num_tok - summary_len
+                        for token in sent.split(' '):
+                            if word_detector.search(token):
+                                remaining_len -= 1
+                                if remaining_len < 0: break
+                            cut_sent.append(token)
+                        summary_sents.append((idx, ' '.join(cut_sent)))
+                        break
+                    else: break
+                hyp = [sent for _, sent in sorted(summary_sents)]
+            else:
+                topk = min(args.topk,doc_len)
+                topk_indices = prob.topk(topk)[1].cpu().data.numpy()
+                topk_indices.sort()
+                doc = batch['doc'][doc_id].split('\n')[:doc_len]
+                hyp = [doc[index] for index in topk_indices]
             ref = summaries[doc_id]
-            with open(os.path.join(args.ref,str(file_id)+'.txt'), 'w') as f:
-                f.write(ref)
-            with open(os.path.join(args.hyp,str(file_id)+'.txt'), 'w') as f:
+            if ref:
+                with open(os.path.join(args.ref,"%06d.txt"%file_id), 'w') as f:
+                    f.write(ref)
+            with open(os.path.join(args.hyp,"%06d.txt"%file_id), 'w') as f:
                 f.write('\n'.join(hyp))
             start = stop
             file_id = file_id + 1
