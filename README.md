@@ -35,17 +35,32 @@ pipenv shell
 python main.py -device 0 -batch_size 32 -model RNN_RNN -seed 1 -save_dir checkpoints/XXX.pt
 # test
 python main.py -device 0 -batch_size 1 -test -load_dir checkpoints/XXX.pt
-
 ```
-## pretrained models
+
+### Summarize your own texts
+For example, you have some documents `some/folder/*/article.txt`. The first step is to tokenize them and pack them into a JSON file. To do this, run:
+```
+python make_data.py "some/folder/*/article.txt" data/my_collection.json
+```
+
+When running `main.py`, you can use the new option `-num_tok` to control the exact number of words per each output summary, or the existing `-topk` option (select *k* sentences).
+If you're running PyTorch without CUDA, execute `git apply no_cuda.patch` first.
+
+To untokenize the output summaries, use
+```
+python put_back_summaries.py outputs/hyp/ "some/folder/*/"
+```
+to send the untokenized summaries to the same directories as their originals.
+
+### Pretrained models
 
 1. RNN_RNN(`checkpoints/RNN_RNN_seed_1.pt`)
 2. CNN_RNN(`checkpoints/CNN_RNN_seed_1.pt`)
 2. AttnRNN(`checkpoints/AttnRNN_seed_1.pt`)
 
-## Result
+### Result
 
-#### DailyMail(75 bytes)  
+##### DailyMail(75 bytes)  
 
 | model  | ROUGE-1   | ROUGE-2 | ROUGE-L |
 | ------ | :-----:   | :----:  | :----:  |

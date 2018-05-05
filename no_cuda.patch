@@ -1,0 +1,64 @@
+diff --git a/models/AttnRNN.py b/models/AttnRNN.py
+index 041ea8a..1b1760e 100644
+--- a/models/AttnRNN.py
++++ b/models/AttnRNN.py
+@@ -59,7 +59,7 @@ class AttnRNN(BasicModule):
+         B = len(doc_lens)
+         H = self.args.hidden_size
+         word_mask = torch.ones_like(x) - torch.sign(x)
+-        word_mask = word_mask.data.type(torch.cuda.ByteTensor).view(N,1,L)
++        word_mask = word_mask.data.type(torch.ByteTensor).view(N,1,L)
+         
+         x = self.embed(x)                                # (N,L,D)
+         x,_ = self.word_RNN(x)
+@@ -78,7 +78,7 @@ class AttnRNN(BasicModule):
+         for i in range(B):
+             for j in range(doc_lens[i]):
+                 mask[i][j] = 0
+-        sent_mask = mask.type(torch.cuda.ByteTensor).view(B,1,max_doc_len)
++        sent_mask = mask.type(torch.ByteTensor).view(B,1,max_doc_len)
+         
+         # attention
+         query = self.sent_query.expand(B,-1,-1).contiguous()
+@@ -88,15 +88,15 @@ class AttnRNN(BasicModule):
+         for index,doc_len in enumerate(doc_lens):
+             valid_hidden = sent_out[index,:doc_len,:]                            # (doc_len,2*H)
+             doc = F.tanh(self.fc(docs[index])).unsqueeze(0)
+-            s = Variable(torch.zeros(1,2*H)).cuda()
++            s = Variable(torch.zeros(1,2*H))
+             for position, h in enumerate(valid_hidden):
+                 h = h.view(1, -1)                                                # (1,2*H)
+                 # get position embeddings
+-                abs_index = Variable(torch.LongTensor([[position]])).cuda()
++                abs_index = Variable(torch.LongTensor([[position]]))
+                 abs_features = self.abs_pos_embed(abs_index).squeeze(0)
+                 
+                 rel_index = int(round((position + 1) * 9.0 / doc_len))
+-                rel_index = Variable(torch.LongTensor([[rel_index]])).cuda()
++                rel_index = Variable(torch.LongTensor([[rel_index]]))
+                 rel_features = self.rel_pos_embed(rel_index).squeeze(0)
+                 
+                 # classification layer
+diff --git a/models/CNN_RNN.py b/models/CNN_RNN.py
+index 077ef04..41f8b12 100644
+--- a/models/CNN_RNN.py
++++ b/models/CNN_RNN.py
+@@ -93,15 +93,15 @@ class CNN_RNN(BasicModule):
+         for index,doc_len in enumerate(doc_lens):
+             valid_hidden = sent_out[index,:doc_len,:]                            # (doc_len,2*H)
+             doc = docs[index].unsqueeze(0)
+-            s = Variable(torch.zeros(1,2*H)).cuda()
++            s = Variable(torch.zeros(1,2*H))
+             for position, h in enumerate(valid_hidden):
+                 h = h.view(1, -1)                                                # (1,2*H)
+                 # get position embeddings
+-                abs_index = Variable(torch.LongTensor([[position]])).cuda()
++                abs_index = Variable(torch.LongTensor([[position]]))
+                 abs_features = self.abs_pos_embed(abs_index).squeeze(0)
+                 
+                 rel_index = int(round((position + 1) * 9.0 / doc_len))
+-                rel_index = Variable(torch.LongTensor([[rel_index]])).cuda()
++                rel_index = Variable(torch.LongTensor([[rel_index]]))
+                 rel_features = self.rel_pos_embed(rel_index).squeeze(0)
+                 
+                 # classification layer
